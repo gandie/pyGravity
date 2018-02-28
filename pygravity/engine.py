@@ -2,6 +2,7 @@ import itertools
 import math
 import time
 
+
 class Planet(object):
 
     def __init__(self, pos_x, pos_y, density, mass, vel_x=0, vel_y=0, fixed=False):
@@ -15,12 +16,8 @@ class Planet(object):
         self.calc_radius()
 
     def calc_radius(self):
-        '''
-        double radius_3 = ((3 * planet->mass) / (4 * 3.14 * planet->density));
-        double radius = calc_third_root(planetkeeper, radius_3);
-        '''
-        # self.radius = ((3 * self.mass) / (4 * 3.1427 * self.density)) ** (1/3.0)
         self.radius = math.sqrt((3 * self.mass) / (4 * 3.1427 * self.density))
+
 
 class Engine(object):
 
@@ -46,7 +43,6 @@ class Engine(object):
     def calc_distance(self, planet1, planet2):
         delta_x = planet1.pos_x - planet2.pos_x
         delta_y = planet1.pos_y - planet2.pos_y
-        #dist = (delta_x ** 2 + delta_y ** 2) ** (1/2.0)
         dist = math.sqrt(delta_x ** 2 + delta_y ** 2)
         return dist, delta_x, delta_y
 
@@ -70,9 +66,11 @@ class Engine(object):
         update_planet.calc_radius()
         return del_planet
 
-
     def tick(self):
-        start = time.time()
+        '''
+        Calculate gravity for each body combination and check for collision.
+        Then update body positions by their velocity
+        '''
         del_indexes = []
         for index1, index2 in itertools.combinations(self.planets, 2):
             planet1 = self.planets[index1]
@@ -84,8 +82,6 @@ class Engine(object):
                 del_indexes.append(index1)
             elif del_planet == planet2:
                 del_indexes.append(index2)
-            else:
-                pass
 
             force_x = force * (delta_x / dist)
             force_y = force * (delta_y / dist)
@@ -97,11 +93,8 @@ class Engine(object):
             planet2.vel_y += force_y * self.timerate / planet2.mass
 
         for index in del_indexes:
-            print(index)
             self.remove_planet(index)
 
         for planet in self.planets.values():
             planet.pos_x += planet.vel_x * self.timerate
             planet.pos_y += planet.vel_y * self.timerate
-        took = time.time() - start
-        print('Took %s' % took)
