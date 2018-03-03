@@ -1,6 +1,8 @@
 import itertools
 import math
 import time
+from Queue import Queue
+from threading import Thread
 
 
 class Planet(object):
@@ -71,6 +73,7 @@ class Engine(object):
         Calculate gravity for each body combination and check for collision.
         Then update body positions by their velocity
         '''
+
         del_indexes = []
         for index1, index2 in itertools.combinations(self.planets, 2):
             planet1 = self.planets[index1]
@@ -98,3 +101,58 @@ class Engine(object):
         for planet in self.planets.values():
             planet.pos_x += planet.vel_x * self.timerate
             planet.pos_y += planet.vel_y * self.timerate
+
+
+'''
+DEACTIVATED MULTITHREADING PART
+def gravity_worker(engine, index_que, del_que):
+    while not index_que.empty():
+        index1, index2 = index_que.get()
+        planet1 = engine.planets[index1]
+        planet2 = engine.planets[index2]
+        dist, delta_x, delta_y = engine.calc_distance(planet1, planet2)
+        force = engine.calc_force(planet1, planet2, dist)
+        del_planet = engine.check_collision(planet1, planet2, dist)
+        if del_planet == planet1:
+            del_que.put(index1)
+        elif del_planet == planet2:
+            del_que.put(index2)
+
+        force_x = force * (delta_x / dist)
+        force_y = force * (delta_y / dist)
+
+        planet1.vel_x -= force_x * engine.timerate / planet1.mass
+        planet1.vel_y -= force_y * engine.timerate / planet1.mass
+
+        planet2.vel_x += force_x * engine.timerate / planet2.mass
+        planet2.vel_y += force_y * engine.timerate / planet2.mass
+        index_que.task_done()
+'''
+
+'''
+MULTITHREADING
+index_que = Queue()
+del_que = Queue()
+
+workers = []
+for _ in range(10):
+    worker = Thread(target=gravity_worker, args=(self, index_que, del_que))
+    worker.setDaemon(True)
+    worker.start()
+
+for index1, index2 in itertools.combinations(self.planets, 2):
+    index_que.put((index1, index2))
+
+index_que.join()
+while not del_que.empty():
+    del_index = del_que.get()
+    del_que.task_done()
+    self.remove_planet(del_index)
+
+for worker in workers:
+    # worker.join()
+    del worker
+
+del index_que
+del del_que
+'''

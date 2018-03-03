@@ -1,21 +1,23 @@
 import unittest
 import sys
 import random
+import time
 
-from pygravity.engine import Engine
+#from pygravity.engine import Engine
+from pygravity.engine_rk4 import Engine
 
 
 class EngineTest(unittest.TestCase):
 
     def test_engineSimple(self):
         test_engine = Engine()
-        test_engine.timerate = 0.01
-        for i in range(100):
+        test_engine.timerate = .1
+        for i in range(1000):
             index = test_engine.add_planet(
-                pos_x=i * 2,
+                pos_x=2 * i,
                 pos_y=0,
-                density=10000,
-                mass=100,
+                density=1,
+                mass=1,
                 vel_x=0,
                 vel_y=0,
                 fixed=False
