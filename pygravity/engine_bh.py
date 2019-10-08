@@ -41,7 +41,7 @@ class Engine(object):
 
     def __init__(self, size):
         self.root_node = Node((0, 0), size)
-        self.phi = 0.5
+        self.phi = .5  # 10
 
     def calc_distance(self, pos1, pos2):
         delta_x = pos1[0] - pos2[0]
@@ -84,6 +84,8 @@ class Engine(object):
 
     def calc_force(self, body1, body2):
         dist, delta_x, delta_y = self.calc_distance(body1.cog, body2.cog)
+        if dist == 0:
+            dist = .1
         force = (body1.mass * body2.mass) / (dist ** 2)
         force_x = force * delta_x / dist
         force_y = force * delta_y / dist
@@ -116,8 +118,8 @@ class Engine(object):
             body.next_force_x = 0
             body.next_force_y = 0
             self.force_traverse(body, self.root_node)
-            ax = body.next_force_x / body.mass
-            ay = body.next_force_y / body.mass
+            ax = -body.next_force_x / body.mass
+            ay = -body.next_force_y / body.mass
             TIMERATIO = 1
             body.vel = (body.vel[0] + ax * TIMERATIO, body.vel[1] + ay * TIMERATIO)
             body.cog = (body.cog[0] + body.vel[0] * TIMERATIO, body.cog[1] + body.vel[1] * TIMERATIO)
