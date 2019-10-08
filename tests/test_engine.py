@@ -51,15 +51,20 @@ class BH_EngineTest(unittest.TestCase):
         print('RK4 Engine created, starting test loop...')
 
     def test_enginePerformace(self):
-        test_engine = BHEngine(size=1000)
+        test_engine = BHEngine(size=10000)
         for i in range(1000):
             test_engine.add_body(
-                pos=(i, i),
+                cog=(i, i),
                 vel=(0, 0),
                 mass=1
             )
-        test_engine.tick()
-        #test_engine.print_children(test_engine.root_node)
+        for i in range(10):
+            start = time.time()
+            test_engine.tick()
+            end = time.time() - start
+            print('One tick took %s seconds using %s bodies' % (
+                end, len(test_engine.root_node.bodies))
+            )
 
 
 if __name__ == '__main__':

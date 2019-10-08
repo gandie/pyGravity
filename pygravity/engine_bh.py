@@ -1,11 +1,14 @@
+'''
+Barnes-Hut n-body engine
+'''
+
 import math
 
 
 class Body(object):
 
-    def __init__(self, pos, vel, mass):
-        self.pos = pos
-        self.cog = pos
+    def __init__(self, cog, vel, mass):
+        self.cog = cog
         self.vel = vel
         self.mass = mass
 
@@ -24,13 +27,13 @@ class Node(object):
         self.mass = sum(body.mass for body in self.bodies)
         if self.mass == 0:
             return
-        cog_x = sum(body.pos[0] * body.mass for body in self.bodies) / self.mass
-        cog_y = sum(body.pos[1] * body.mass for body in self.bodies) / self.mass
+        cog_x = sum(body.cog[0] * body.mass for body in self.bodies) / self.mass
+        cog_y = sum(body.cog[1] * body.mass for body in self.bodies) / self.mass
         self.cog = (cog_x, cog_y)
 
     def contains(self, body):
-        match_x = body.pos[0] >= self.pos[0] and body.pos[0] < self.pos[0] + self.size
-        match_y = body.pos[1] >= self.pos[1] and body.pos[1] < self.pos[1] + self.size
+        match_x = body.cog[0] >= self.pos[0] and body.cog[0] < self.pos[0] + self.size
+        match_y = body.cog[1] >= self.pos[1] and body.cog[1] < self.pos[1] + self.size
         return match_x and match_y
 
 
@@ -65,14 +68,18 @@ class Engine(object):
         )
         children = [nw_node, ne_node, se_node, sw_node]
 
+        delbodies = []
         for body in node.bodies:
             for child in children:
                 if child.contains(body):
                     child.bodies.append(body)
                     break
             else:
-                raise AssertionError('Each body must fit into a child!')
+                msg = 'Body %s does not fit into subnodes!' % (body.__dict__)
+                #print(msg)
+                delbodies.append(body)
 
+        node.bodies = [b for b in node.bodies if b not in delbodies]
         return children
 
     def calc_force(self, body1, body2):
@@ -113,7 +120,7 @@ class Engine(object):
             ay = body.next_force_y / body.mass
             TIMERATIO = 1
             body.vel = (body.vel[0] + ax * TIMERATIO, body.vel[1] + ay * TIMERATIO)
-            body.pos = (body.pos[0] + body.vel[0] * TIMERATIO, body.pos[1] + body.vel[1] * TIMERATIO)
+            body.cog = (body.cog[0] + body.vel[0] * TIMERATIO, body.cog[1] + body.vel[1] * TIMERATIO)
 
     def init_children(self, node):
         node.calc_cog()
@@ -123,8 +130,8 @@ class Engine(object):
         for child in node.children:
             self.init_children(child)
 
-    def add_body(self, pos, vel, mass):
-        self.root_node.bodies.append(Body(pos, vel, mass))
+    def add_body(self, cog, vel, mass):
+        self.root_node.bodies.append(Body(cog, vel, mass))
 
     def print_children(self, node):
         print('node %s' % node.__dict__)
