@@ -11,6 +11,7 @@ class Body(object):
         self.cog = cog
         self.vel = vel
         self.mass = mass
+        self.remove = False
 
 
 class Node(object):
@@ -39,9 +40,9 @@ class Node(object):
 
 class Engine(object):
 
-    def __init__(self, size):
+    def __init__(self, size, phi=0.5):
         self.root_node = Node((0, 0), size)
-        self.phi = .5  # 10
+        self.phi = phi  # 10
 
     def calc_distance(self, pos1, pos2):
         delta_x = pos1[0] - pos2[0]
@@ -75,8 +76,7 @@ class Engine(object):
                     child.bodies.append(body)
                     break
             else:
-                msg = 'Body %s does not fit into subnodes!' % (body.__dict__)
-                #print(msg)
+                # Body does not fit into subnodes
                 delbodies.append(body)
 
         node.bodies = [b for b in node.bodies if b not in delbodies]
@@ -84,14 +84,41 @@ class Engine(object):
 
     def calc_force(self, body1, body2):
         dist, delta_x, delta_y = self.calc_distance(body1.cog, body2.cog)
-        if dist == 0:
-            dist = .1
+        both_bodies = isinstance(body1, Body) and isinstance(body2, Body)
+        if isinstance(body2, Body) and body2.remove:
+            # early abort: body2 has been removed!
+            return 0, 0
+        if not dist and not both_bodies:
+            dist = 1
+            return 0, 0
+        if dist <= 2 and both_bodies:
+            if body1.remove or body2.remove:
+                # Collision already done
+                return 0, 0
+            if body1.mass > body2.mass:
+                keep = body1
+                kill = body2
+            else:
+                keep = body2
+                kill = body1
+            kill.remove = True
+            keep.vel = (
+                (keep.vel[0]*keep.mass + kill.vel[0]*kill.mass) / (keep.mass + kill.mass),
+                (keep.vel[1]*keep.mass + kill.vel[1]*kill.mass) / (keep.mass + kill.mass),
+            )
+            keep.mass += kill.mass
+            # Collision done
+            return 0, 0
         force = (body1.mass * body2.mass) / (dist ** 2)
         force_x = force * delta_x / dist
         force_y = force * delta_y / dist
         return force_x, force_y
 
     def force_traverse(self, body, node):
+
+        if body.remove:
+            # Traverse abort: body has been removed'
+            return
 
         if len(node.bodies) == 1 and node.bodies[0] != body:
             force_x, force_y = self.calc_force(body, node.bodies[0])
@@ -101,7 +128,7 @@ class Engine(object):
         else:
             dist, delta_x, delta_y = self.calc_distance(body.cog, node.cog)
             if not dist:
-                dist = 0.001
+                dist = .5
             phi = node.size / dist
             if phi < self.phi:
                 force_x, force_y = self.calc_force(body, node)
@@ -120,9 +147,19 @@ class Engine(object):
             self.force_traverse(body, self.root_node)
             ax = -body.next_force_x / body.mass
             ay = -body.next_force_y / body.mass
-            TIMERATIO = 1
-            body.vel = (body.vel[0] + ax * TIMERATIO, body.vel[1] + ay * TIMERATIO)
-            body.cog = (body.cog[0] + body.vel[0] * TIMERATIO, body.cog[1] + body.vel[1] * TIMERATIO)
+            TIMERATIO = .1
+            body.vel = (
+                body.vel[0] + ax * TIMERATIO,
+                body.vel[1] + ay * TIMERATIO
+            )
+            body.cog = (
+                body.cog[0] + body.vel[0] * TIMERATIO,
+                body.cog[1] + body.vel[1] * TIMERATIO
+            )
+
+        self.root_node.bodies = [
+            b for b in self.root_node.bodies if not b.remove
+        ]
 
     def init_children(self, node):
         node.calc_cog()
@@ -139,3 +176,9 @@ class Engine(object):
         print('node %s' % node.__dict__)
         for child in node.children:
             self.print_children(child)
+
+    def traverse_node(self, node):
+        yield node
+        for child in node.children:
+            yield from self.traverse_node(child)
+        #print('called!')
