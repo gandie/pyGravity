@@ -60,8 +60,8 @@ def main():
                 vel=(vel_y, 0),
                 mass=1
             )
-    add_bodies()
 
+    add_bodies()
     engine.add_body(
         cog=(500, 500),
         vel=(0, 0),
@@ -69,10 +69,10 @@ def main():
     )
 
     '''
-    for i in range(100):
-        for j in range(100):
+    for i in range(15):
+        for j in range(15):
             engine.add_body(
-                cog=(i * 10, j * 10),
+                cog=(i * 1.1 + 500, j * 1.1 + 500),
                 vel=(0, 0),
                 mass=1
             )

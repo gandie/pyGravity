@@ -11,6 +11,7 @@ class Body(object):
         self.cog = cog
         self.vel = vel
         self.mass = mass
+        self.collision = False
         self.remove = False
 
 
@@ -40,9 +41,15 @@ class Node(object):
 
 class Engine(object):
 
-    def __init__(self, size, phi=0.5):
+    def __init__(self, size, phi=0.5, collision_mode='elastic'):
         self.root_node = Node((0, 0), size)
         self.phi = phi  # 10
+        self.collision_mode = collision_mode
+
+        self.collision_modes = {
+            'elastic': self.elastic_collision,
+            'inelastic': self.inelastic_collision,
+        }
 
     def calc_distance(self, pos1, pos2):
         delta_x = pos1[0] - pos2[0]
@@ -82,6 +89,39 @@ class Engine(object):
         node.bodies = [b for b in node.bodies if b not in delbodies]
         return children
 
+    def elastic_collision(self, body1, body2):
+        if body1.collision or body2.collision:
+            return
+        mass_sum = body1.mass + body2.mass
+        b1_vx = ((body1.mass - body2.mass)/mass_sum)*body1.vel[0] + ((2*body2.mass)/mass_sum)*body2.vel[0]
+        b1_vy = ((body1.mass - body2.mass)/mass_sum)*body1.vel[1] + ((2*body2.mass)/mass_sum)*body2.vel[1]
+
+        b2_vx = ((body2.mass - body1.mass)/mass_sum)*body2.vel[0] + ((2*body1.mass)/mass_sum)*body1.vel[0]
+        b2_vy = ((body2.mass - body1.mass)/mass_sum)*body2.vel[1] + ((2*body1.mass)/mass_sum)*body1.vel[1]
+
+        body1.vel = (b1_vx, b1_vy)
+        body2.vel = (b2_vx, b2_vy)
+
+        body1.collision = True
+        body2.collision = True
+
+    def inelastic_collision(self, body1, body2):
+        if body1.remove or body2.remove:
+            # Collision already done
+            return
+        if body1.mass > body2.mass:
+            keep = body1
+            kill = body2
+        else:
+            keep = body2
+            kill = body1
+        kill.remove = True
+        keep.vel = (
+            (keep.vel[0]*keep.mass + kill.vel[0]*kill.mass) / (keep.mass + kill.mass),
+            (keep.vel[1]*keep.mass + kill.vel[1]*kill.mass) / (keep.mass + kill.mass),
+        )
+        keep.mass += kill.mass
+
     def calc_force(self, body1, body2):
         dist, delta_x, delta_y = self.calc_distance(body1.cog, body2.cog)
         both_bodies = isinstance(body1, Body) and isinstance(body2, Body)
@@ -92,21 +132,7 @@ class Engine(object):
             dist = 1
             return 0, 0
         if dist <= 2 and both_bodies:
-            if body1.remove or body2.remove:
-                # Collision already done
-                return 0, 0
-            if body1.mass > body2.mass:
-                keep = body1
-                kill = body2
-            else:
-                keep = body2
-                kill = body1
-            kill.remove = True
-            keep.vel = (
-                (keep.vel[0]*keep.mass + kill.vel[0]*kill.mass) / (keep.mass + kill.mass),
-                (keep.vel[1]*keep.mass + kill.vel[1]*kill.mass) / (keep.mass + kill.mass),
-            )
-            keep.mass += kill.mass
+            self.collision_modes[self.collision_mode](body1, body2)
             # Collision done
             return 0, 0
         force = (body1.mass * body2.mass) / (dist ** 2)
@@ -142,6 +168,7 @@ class Engine(object):
     def tick(self):
         self.init_children(self.root_node)
         for body in self.root_node.bodies:
+            body.collision = False
             body.next_force_x = 0
             body.next_force_y = 0
             self.force_traverse(body, self.root_node)
