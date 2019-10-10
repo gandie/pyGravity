@@ -7,15 +7,15 @@ import math
 
 cdef class Body(object):
 
-    cdef public (float, float) cog
-    cdef public (float, float) vel
-    cdef public int mass
+    cdef public (double, double) cog
+    cdef public (double, double) vel
+    cdef public double mass
     cdef public int remove
     cdef public int collision
-    cdef public float next_force_x
-    cdef public float next_force_y
+    cdef public double next_force_x
+    cdef public double next_force_y
 
-    def __init__(self, cog, vel, mass):
+    def __cinit__(self, cog, vel, mass):
         self.cog = cog
         self.vel = vel
         self.mass = mass
@@ -24,16 +24,15 @@ cdef class Body(object):
         self.next_force_x = 0
         self.next_force_y = 0
 
-'''
+
 cdef class Node(object):
-    cdef public (float, float) cog
-    cdef public (float, float) pos
-    cdef public int mass
-    cdef public int size
+    cdef public (double, double) cog
+    cdef public (double, double) pos
+    cdef public double mass
+    cdef public double size
     cdef public list children
     cdef public list bodies
-'''
-class Node(object):
+
     def __init__(self, pos, size):
         self.pos = pos
         self.size = size
@@ -46,17 +45,25 @@ class Node(object):
         self.mass = sum(body.mass for body in self.bodies)
         if self.mass == 0:
             return
+        cdef double cog_x, cog_y
         cog_x = sum(body.cog[0] * body.mass for body in self.bodies) / self.mass
         cog_y = sum(body.cog[1] * body.mass for body in self.bodies) / self.mass
         self.cog = (cog_x, cog_y)
 
     def contains(self, body):
+        cdef int match_x, match_y
         match_x = body.cog[0] >= self.pos[0] and body.cog[0] < self.pos[0] + self.size
         match_y = body.cog[1] >= self.pos[1] and body.cog[1] < self.pos[1] + self.size
         return match_x and match_y
 
 
-class Engine(object):
+cdef class Engine(object):
+
+    cdef public object root_node
+    cdef public double phi
+    cdef public str collision_mode
+    cdef public object collision_modes
+
 
     def __init__(self, size, phi=0.5, collision_mode='elastic'):
         self.root_node = Node((0, 0), size)
@@ -68,7 +75,8 @@ class Engine(object):
             'inelastic': self.inelastic_collision,
         }
 
-    def calc_distance(self, pos1, pos2):
+    cdef (double, double, double) calc_distance(self, pos1, pos2):
+        cdef double delta_x, delta_y, dist
         delta_x = pos1[0] - pos2[0]
         delta_y = pos1[1] - pos2[1]
         dist = math.sqrt(delta_x ** 2 + delta_y ** 2)
