@@ -27,13 +27,13 @@ def main():
     clock = pygame.time.Clock()
 
     draw_boxes = False
-    engine = Engine(size=1000)
+    engine = Engine(size=1000, phi=1)
 
     SUNMASS = 1000000
 
     def add_bodies():
-        for i in range(125):
-            x = i * 4
+        for i in range(250):
+            x = i * 2
             cog_left = (x, 500)
             cog_right = (1000 - x, 500)
             cog_up = (500, x)
