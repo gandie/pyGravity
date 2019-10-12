@@ -27,7 +27,7 @@ def main():
     clock = pygame.time.Clock()
 
     draw_boxes = False
-    engine = Engine(size=1000, phi=1)
+    engine = Engine(size=1000, phi=.5)
 
     SUNMASS = 1000000
 

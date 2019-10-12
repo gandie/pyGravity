@@ -2,10 +2,9 @@
 Barnes-Hut n-body engine
 '''
 
-import math
+import cython
 
-
-cdef class Body(object):
+cdef class Body():
 
     cdef public (double, double) cog
     cdef public (double, double) vel
@@ -15,7 +14,7 @@ cdef class Body(object):
     cdef public double next_force_x
     cdef public double next_force_y
 
-    def __cinit__(self, cog, vel, mass):
+    def __cinit__(self, (double, double) cog, (double, double) vel, double mass):
         self.cog = cog
         self.vel = vel
         self.mass = mass
@@ -25,7 +24,7 @@ cdef class Body(object):
         self.next_force_y = 0
 
 
-cdef class Node(object):
+cdef class Node():
     cdef public (double, double) cog
     cdef public (double, double) pos
     cdef public double mass
@@ -33,7 +32,7 @@ cdef class Node(object):
     cdef public list children
     cdef public list bodies
 
-    def __cinit__(self, pos, size):
+    def __cinit__(self, (double, double) pos, double size):
         self.pos = pos
         self.size = size
         self.bodies = []
@@ -45,18 +44,27 @@ cdef class Node(object):
         self._calc_cog()
 
     cdef void _calc_cog(self):
-        self.mass = sum(body.mass for body in self.bodies)
+        cdef double cog_x, cog_y
+        cdef Body body
+        self.mass = 0
+        cog_x = 0
+        cog_y = 0
+
+        for body in self.bodies:
+            self.mass += body.mass
+            cog_x += body.cog[0] * body.mass
+            cog_y += body.cog[1] * body.mass
+
         if self.mass == 0:
             return
-        cdef double cog_x, cog_y
-        cog_x = sum(body.cog[0] * body.mass for body in self.bodies) / self.mass
-        cog_y = sum(body.cog[1] * body.mass for body in self.bodies) / self.mass
+        cog_x = cog_x / self.mass
+        cog_y = cog_y / self.mass
         self.cog = (cog_x, cog_y)
 
     def contains(self, body):
         return self._contains(body)
 
-    cdef int _contains(self, body):
+    cdef int _contains(self, Body body):
         cdef int match_x, match_y, result
         match_x = body.cog[0] >= self.pos[0] and body.cog[0] < self.pos[0] + self.size
         match_y = body.cog[1] >= self.pos[1] and body.cog[1] < self.pos[1] + self.size
@@ -64,12 +72,12 @@ cdef class Node(object):
         return result
 
 
-cdef class Engine(object):
+cdef class Engine():
 
     cdef public object root_node
     cdef public double phi
     cdef public str collision_mode
-    cdef public object collision_modes
+    cdef public dict collision_modes
 
 
     def __init__(self, size, phi=0.5, collision_mode='elastic'):
@@ -82,17 +90,19 @@ cdef class Engine(object):
             'inelastic': self.inelastic_collision,
         }
 
-    cdef (double, double, double) calc_distance(self, pos1, pos2):
+    cdef (double, double, double) calc_distance(self, (double, double) pos1, (double, double) pos2):
         cdef double delta_x, delta_y, dist
         delta_x = pos1[0] - pos2[0]
         delta_y = pos1[1] - pos2[1]
-        dist = math.sqrt(delta_x ** 2 + delta_y ** 2)
+        dist = (delta_x ** 2 + delta_y ** 2) ** 0.5
         return dist, delta_x, delta_y
 
-    cdef object slice_node(self, node):
+    cdef object slice_node(self, Node node):
+        cdef list children
+        cdef Node nw_node, ne_node, se_node, sw_node
         nw_node = Node(
             pos=(node.pos[0], node.pos[1] + node.size/2),
-            size=node.size/2
+            size=node.size/2.0
         )
         ne_node = Node(
             pos=(node.pos[0] + node.size/2, node.pos[1] + node.size/2),
@@ -124,7 +134,7 @@ cdef class Engine(object):
     def elastic_collision(self, body1, body2):
         self._elastic_collision(body1, body2)
 
-    cdef void _elastic_collision(self, object body1, object body2):
+    cdef void _elastic_collision(self, Body body1, Body body2):
         if body1.collision or body2.collision:
             return
 
@@ -143,7 +153,8 @@ cdef class Engine(object):
         body1.collision = True
         body2.collision = True
 
-    def inelastic_collision(self, body1, body2):
+    cdef inelastic_collision(self, Body body1, Body body2):
+        cdef Body kill, keep
         if body1.remove or body2.remove:
             # Collision already done
             return
@@ -154,13 +165,14 @@ cdef class Engine(object):
             keep = body2
             kill = body1
         kill.remove = True
+
         keep.vel = (
             (keep.vel[0]*keep.mass + kill.vel[0]*kill.mass) / (keep.mass + kill.mass),
             (keep.vel[1]*keep.mass + kill.vel[1]*kill.mass) / (keep.mass + kill.mass),
         )
         keep.mass += kill.mass
 
-    cdef (double, double) calc_force(self, body1, body2):
+    cdef (double, double) calc_force(self, object body1, object body2):
         cdef double dist, delta_x, delta_y, force, force_x, force_y
         dist, delta_x, delta_y = self.calc_distance(body1.cog, body2.cog)
         both_bodies = isinstance(body1, Body) and isinstance(body2, Body)
@@ -179,7 +191,7 @@ cdef class Engine(object):
         force_y = force * delta_y / dist
         return force_x, force_y
 
-    cdef void force_traverse(self, body, node):
+    cdef void force_traverse(self, Body body, Node node):
 
         cdef double dist, delta_x, delta_y, phi
         if body.remove:
@@ -209,6 +221,7 @@ cdef class Engine(object):
         self._tick()
 
     cdef void _tick(self):
+        cdef Body body
         cdef double ax, ay, TIMERATIO
         self.init_children(self.root_node)
         for body in self.root_node.bodies:
@@ -232,7 +245,7 @@ cdef class Engine(object):
             b for b in self.root_node.bodies if not b.remove
         ]
 
-    cdef void init_children(self, node):
+    cdef void init_children(self, object node):
         node.calc_cog()
         if len(node.bodies) <= 1:
             return
