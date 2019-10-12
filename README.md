@@ -15,3 +15,17 @@ Currently implemented:
 More links!
 + [RK Engine Code stolen here](http://ttsiodras.github.com/gravity.html)
 + [Great explanation of Barnes-Hut algorithm](http://arborjs.org/docs/barnes-hut)
+
+# Cygravity
+
+Cython is required!
+
+Cythonzied versions of PyGravity engines. Runs much faster due to static typing
+and less calls into python. Still not really production capable but rather easy
+to write.
+
+```bash
+cd cygravity
+python setup.py build_ext --inplace
+python pygame_bh.py
+```
