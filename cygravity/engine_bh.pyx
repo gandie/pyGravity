@@ -200,7 +200,10 @@ cdef class Engine():
         force_y = force * delta_y / dist
         return force_x, force_y
 
-    cdef void force_traverse(self, Body body, Node node):
+    def force_traverse(self, body, node):
+        self._force_traverse(body, node)
+
+    cdef void _force_traverse(self, Body body, Node node):
 
         cdef double dist, delta_x, delta_y, phi
         if body.remove or body.fixed:
@@ -224,7 +227,7 @@ cdef class Engine():
                 return
             else:
                 for child in node.children:
-                    self.force_traverse(body, child)
+                    self._force_traverse(body, child)
 
     def tick(self):
         self._tick()
@@ -237,7 +240,7 @@ cdef class Engine():
             body.collision = False
             body.next_force_x = 0
             body.next_force_y = 0
-            self.force_traverse(body, self.root_node)
+            self._force_traverse(body, self.root_node)
             ax = -body.next_force_x / body.mass
             ay = -body.next_force_y / body.mass
             TIMERATIO = .1
