@@ -4,16 +4,18 @@ Barnes-Hut n-body engine
 
 import cython
 
+
+@cython.freelist(100000)
 cdef class Body():
 
     cdef public (double, double) cog
-    cdef public (double, double) vel
-    cdef public double mass
+    cdef (double, double) vel
+    cdef double mass
     cdef public int remove
     cdef public int collision
     cdef public int fixed
-    cdef public double next_force_x
-    cdef public double next_force_y
+    cdef double next_force_x
+    cdef double next_force_y
 
     def __cinit__(self, (double, double) cog, (double, double) vel, double mass, int fixed):
         self.cog = cog
@@ -26,13 +28,14 @@ cdef class Body():
         self.next_force_y = 0
 
 
-@cython.freelist(1000000)
+@cython.cdivision(True)
+@cython.freelist(10000000)
 cdef class Node():
-    cdef public (double, double) cog
-    cdef public (double, double) pos
-    cdef public double mass
-    cdef public double size
-    cdef public list children
+    cdef (double, double) cog
+    cdef (double, double) pos
+    cdef double mass
+    cdef double size
+    cdef list children
     cdef public list bodies
 
     def __cinit__(self, (double, double) pos, double size):
@@ -75,10 +78,12 @@ cdef class Node():
         return result
 
 
+@cython.cdivision(True)
 cdef class Engine():
 
     cdef public Node root_node
     cdef public double phi
+    cdef public double size
     cdef public str collision_mode
     cdef public dict collision_modes
 
@@ -87,6 +92,7 @@ cdef class Engine():
         self.root_node = Node((0, 0), size)
         self.phi = phi  # 10
         self.collision_mode = collision_mode
+        self.size = size
 
         self.collision_modes = {
             'elastic': self.elastic_collision,
@@ -102,8 +108,7 @@ cdef class Engine():
 
     cdef list slice_node(self, Node node):
         cdef list children, delbodies
-        cdef Node nw_node, ne_node, se_node, sw_node
-        #cdef double size
+        cdef Node nw_node, ne_node, se_node, sw_node, child
         cdef double half_size
         half_size = node.size / 2.0
         nw_node = Node(
@@ -127,7 +132,7 @@ cdef class Engine():
         delbodies = []
         for body in node.bodies:
             for child in children:
-                if child.contains(body):
+                if child._contains(body):
                     child.bodies.append(body)
                     break
             else:
@@ -181,21 +186,24 @@ cdef class Engine():
         )
         keep.mass += kill.mass
 
-    cdef (double, double) calc_force(self, object body1, object body2):
+    cdef (double, double) calc_force(self, Body body1, Body body2):
         cdef double dist, delta_x, delta_y, force, force_x, force_y
         dist, delta_x, delta_y = self.calc_distance(body1.cog, body2.cog)
-        both_bodies = isinstance(body1, Body) and isinstance(body2, Body)
-        if isinstance(body2, Body) and body2.remove:
+        if body2.remove:
             # early abort: body2 has been removed!
             return 0, 0
-        if not dist and not both_bodies:
-            dist = 1
-            return 0, 0
-        if dist <= 2 and both_bodies:
+        if dist <= 2:
             self.collision_modes[self.collision_mode](body1, body2)
             # Collision done
             return 0, 0
         force = (body1.mass * body2.mass) / (dist ** 2)
+        force_x = force * delta_x / dist
+        force_y = force * delta_y / dist
+        return force_x, force_y
+
+    cdef (double, double) calc_force_node(self, Body body, Node node, double dist, double delta_x, double delta_y):
+        cdef double force, force_x, force_y
+        force = (body.mass * node.mass) / (dist ** 2)
         force_x = force * delta_x / dist
         force_y = force * delta_y / dist
         return force_x, force_y
@@ -206,14 +214,20 @@ cdef class Engine():
     cdef void _force_traverse(self, Body body, Node node):
 
         cdef double dist, delta_x, delta_y, phi
+        cdef Body second_body
         if body.remove or body.fixed:
-            # Traverse abort: body has been removed'
             return
 
-        if len(node.bodies) == 1 and node.bodies[0] != body:
-            force_x, force_y = self.calc_force(body, node.bodies[0])
-            body.next_force_x += force_x
-            body.next_force_y += force_y
+        # if len(node.bodies) == 1 and node.bodies[0] != body:
+        if len(node.bodies) == 1:
+            second_body = node.bodies[0]
+            if body is not second_body:
+                force_x, force_y = self.calc_force(body, second_body)
+                body.next_force_x += force_x
+                body.next_force_y += force_y
+            # force_x, force_y = self.calc_force(body, node.bodies[0])
+            # body.next_force_x += force_x
+            # body.next_force_y += force_y
             return
         else:
             dist, delta_x, delta_y = self.calc_distance(body.cog, node.cog)
@@ -221,7 +235,8 @@ cdef class Engine():
                 dist = .5
             phi = node.size / dist
             if phi < self.phi:
-                force_x, force_y = self.calc_force(body, node)
+                # force_x, force_y = self.calc_force(body, node)
+                force_x, force_y = self.calc_force_node(body, node, dist, delta_x, delta_y)
                 body.next_force_x += force_x
                 body.next_force_y += force_y
                 return
@@ -258,7 +273,7 @@ cdef class Engine():
         ]
 
     cdef void init_children(self, Node node):
-        node.calc_cog()
+        node._calc_cog()
         if len(node.bodies) <= 1:
             return
         node.children = self.slice_node(node)

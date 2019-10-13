@@ -27,43 +27,46 @@ def main():
     clock = pygame.time.Clock()
 
     draw_boxes = False
-    engine = Engine(size=1000, phi=.5, collision_mode='elastic')
+    engine = Engine(size=10000, phi=.5, collision_mode='elastic')
 
+    SCALE = engine.size / RESOLUTION[0]
     SUNMASS = 1000000
 
-    def add_bodies():
-        for i in range(250):
-            x = i * 2
-            cog_left = (x, 500)
-            cog_right = (1000 - x, 500)
-            cog_up = (500, x)
-            cog_down = (500, 1000 - x)
-            dist = 500 - x
+    def add_bodies(engine, bodies=1000):
+        for i in range(bodies // 4):
+            x = i * (2 * engine.size / bodies)
+            cog_left = (x, engine.size / 2)
+            cog_right = (engine.size - x, engine.size / 2)
+            cog_up = (engine.size / 2, x)
+            cog_down = (engine.size / 2, engine.size - x)
+            dist = engine.size / 2 - x
             vel_y = math.sqrt(SUNMASS / dist)
+            # mass = random.random() * 5
+            mass = 1
             engine.add_body(
                 cog=cog_left,
                 vel=(0, vel_y),
-                mass=1
+                mass=mass
             )
             engine.add_body(
                 cog=cog_right,
                 vel=(0, -vel_y),
-                mass=1
+                mass=mass
             )
             engine.add_body(
                 cog=cog_up,
                 vel=(-vel_y, 0),
-                mass=1
+                mass=mass
             )
             engine.add_body(
                 cog=cog_down,
                 vel=(vel_y, 0),
-                mass=1
+                mass=mass
             )
 
-    add_bodies()
+    add_bodies(engine)
     engine.add_body(
-        cog=(500, 500),
+        cog=(engine.size / 2, engine.size / 2),
         vel=(0, 0),
         mass=SUNMASS,
         fixed=True
@@ -122,7 +125,10 @@ def main():
                 (0, 0, 1, 1)
             )
             body_surface = body_surface.convert_alpha()
-            display.blit(body_surface, body.cog)
+            display.blit(
+                body_surface,
+                (body.cog[0] / SCALE, body.cog[1] / SCALE)
+            )
 
         screen.blit(display, (0, 0))
 
@@ -134,7 +140,7 @@ def main():
                 running = False
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == LEFT:
-                add_bodies()
+                add_bodies(engine)
                 print('left mouse buttondown')
 
             if event.type == pygame.MOUSEBUTTONUP and event.button == LEFT:

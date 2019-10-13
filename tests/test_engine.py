@@ -3,11 +3,12 @@ import time
 
 from pygravity.engine_rk4 import Engine as RK4Engine
 from pygravity.engine_bh import Engine as BHEngine
+from engine_bh import Engine as CyBHEngine
 
 
 class RK4_EngineTest(unittest.TestCase):
 
-    def notest_engineSimple(self):
+    def test_engineSimple(self):
         test_engine = RK4Engine()
         print('RK4 Engine created, starting test loop...')
         test_engine.timerate = .1
@@ -21,7 +22,7 @@ class RK4_EngineTest(unittest.TestCase):
                 vel_y=0,
                 fixed=False
             )
-        for i in range(3):
+        for i in range(10):
             start = time.time()
             test_engine.tick()
             end = time.time() - start
@@ -48,7 +49,6 @@ class BH_EngineTest(unittest.TestCase):
 
         test_engine.tick()
         test_engine.print_children(test_engine.root_node)
-        print('RK4 Engine created, starting test loop...')
 
     def test_enginePerformace(self):
         test_engine = BHEngine(size=10000)
@@ -58,6 +58,27 @@ class BH_EngineTest(unittest.TestCase):
                 vel=(0, 0),
                 mass=1
             )
+        print('Now using BH_Engine')
+        for i in range(10):
+            start = time.time()
+            test_engine.tick()
+            end = time.time() - start
+            print('One tick took %s seconds using %s bodies' % (
+                end, len(test_engine.root_node.bodies))
+            )
+
+
+class CyBH_EngineTest(unittest.TestCase):
+
+    def test_enginePerformace(self):
+        test_engine = CyBHEngine(size=10000)
+        for i in range(1000):
+            test_engine.add_body(
+                cog=(i, i),
+                vel=(0, 0),
+                mass=1
+            )
+        print('Now using CyBH_Engine')
         for i in range(10):
             start = time.time()
             test_engine.tick()
