@@ -3,7 +3,7 @@ from engine_bh import Engine
 import random
 import math
 
-FPS = 100
+FPS = 60
 
 LEFT = 1  # left mouse button
 MIDDLE = 2
@@ -27,7 +27,7 @@ def main():
     clock = pygame.time.Clock()
 
     draw_boxes = False
-    engine = Engine(size=1000, phi=.5)
+    engine = Engine(size=1000, phi=.5, collision_mode='elastic')
 
     SUNMASS = 1000000
 
@@ -65,16 +65,17 @@ def main():
     engine.add_body(
         cog=(500, 500),
         vel=(0, 0),
-        mass=SUNMASS
+        mass=SUNMASS,
+        fixed=True
     )
 
     '''
-    for i in range(15):
-        for j in range(15):
+    for i in range(10):
+        for j in range(10):
             engine.add_body(
-                cog=(i * 1.1 + 500, j * 1.1 + 500),
+                cog=(i * 100, j * 100),
                 vel=(0, 0),
-                mass=1
+                mass=100
             )
     '''
 

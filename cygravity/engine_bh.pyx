@@ -11,19 +11,22 @@ cdef class Body():
     cdef public double mass
     cdef public int remove
     cdef public int collision
+    cdef public int fixed
     cdef public double next_force_x
     cdef public double next_force_y
 
-    def __cinit__(self, (double, double) cog, (double, double) vel, double mass):
+    def __cinit__(self, (double, double) cog, (double, double) vel, double mass, int fixed):
         self.cog = cog
         self.vel = vel
         self.mass = mass
         self.collision = False
         self.remove = False
+        self.fixed = fixed
         self.next_force_x = 0
         self.next_force_y = 0
 
 
+@cython.freelist(1000000)
 cdef class Node():
     cdef public (double, double) cog
     cdef public (double, double) pos
@@ -74,7 +77,7 @@ cdef class Node():
 
 cdef class Engine():
 
-    cdef public object root_node
+    cdef public Node root_node
     cdef public double phi
     cdef public str collision_mode
     cdef public dict collision_modes
@@ -97,24 +100,27 @@ cdef class Engine():
         dist = (delta_x ** 2 + delta_y ** 2) ** 0.5
         return dist, delta_x, delta_y
 
-    cdef object slice_node(self, Node node):
-        cdef list children
+    cdef list slice_node(self, Node node):
+        cdef list children, delbodies
         cdef Node nw_node, ne_node, se_node, sw_node
+        #cdef double size
+        cdef double half_size
+        half_size = node.size / 2.0
         nw_node = Node(
-            pos=(node.pos[0], node.pos[1] + node.size/2),
-            size=node.size/2.0
+            pos=(node.pos[0], node.pos[1] + half_size),
+            size=half_size
         )
         ne_node = Node(
-            pos=(node.pos[0] + node.size/2, node.pos[1] + node.size/2),
-            size=node.size/2
+            pos=(node.pos[0] + half_size, node.pos[1] + half_size),
+            size=half_size
         )
         se_node = Node(
-            pos=(node.pos[0] + node.size/2, node.pos[1]),
-            size=node.size/2
+            pos=(node.pos[0] + half_size, node.pos[1]),
+            size=half_size
         )
         sw_node = Node(
             pos=(node.pos[0], node.pos[1]),
-            size=node.size/2
+            size=half_size
         )
         children = [nw_node, ne_node, se_node, sw_node]
 
@@ -153,7 +159,10 @@ cdef class Engine():
         body1.collision = True
         body2.collision = True
 
-    cdef inelastic_collision(self, Body body1, Body body2):
+    def inelastic_collision(self, body1, body2):
+        self._inelastic_collision(body1, body2)
+
+    cdef void _inelastic_collision(self, Body body1, Body body2):
         cdef Body kill, keep
         if body1.remove or body2.remove:
             # Collision already done
@@ -194,7 +203,7 @@ cdef class Engine():
     cdef void force_traverse(self, Body body, Node node):
 
         cdef double dist, delta_x, delta_y, phi
-        if body.remove:
+        if body.remove or body.fixed:
             # Traverse abort: body has been removed'
             return
 
@@ -245,7 +254,7 @@ cdef class Engine():
             b for b in self.root_node.bodies if not b.remove
         ]
 
-    cdef void init_children(self, object node):
+    cdef void init_children(self, Node node):
         node.calc_cog()
         if len(node.bodies) <= 1:
             return
@@ -253,8 +262,8 @@ cdef class Engine():
         for child in node.children:
             self.init_children(child)
 
-    def add_body(self, cog, vel, mass):
-        self.root_node.bodies.append(Body(cog, vel, mass))
+    def add_body(self, cog, vel, mass, fixed=False):
+        self.root_node.bodies.append(Body(cog, vel, mass, fixed))
 
     def print_children(self, node):
         print('node %s' % node.__dict__)
