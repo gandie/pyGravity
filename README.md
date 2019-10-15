@@ -16,13 +16,22 @@ More links!
 + [RK Engine Code stolen here](http://ttsiodras.github.com/gravity.html)
 + [Great explanation of Barnes-Hut algorithm](http://arborjs.org/docs/barnes-hut)
 
-# Cygravity
+## Installation
 
-Cython is required!
+Requirements and module itself:
+
+```
+pip install -r requirements.txt
+python setup.py install
+```
+
+# CyGravity
 
 Cythonzied versions of PyGravity engines. Runs much faster due to static typing
 and less calls into python. Still not really production capable but rather easy
 to write.
+
+## Installation
 
 ```bash
 cd cygravity
