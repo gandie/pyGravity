@@ -1,5 +1,7 @@
 '''
 Barnes-Hut n-body engine
+
+Check README of this repo for links on how Barnes-Hut works in detail.
 '''
 
 import cython
@@ -7,7 +9,20 @@ import cython
 
 @cython.freelist(100000)
 cdef class Body():
+    '''
+    Object representing one body simulated by the Engine. Not much work
+    done here but keeping body data, many thousand instances may be created via
+    Engine's add_body method
 
+    cog          -- double tuple, coordinates (x, y)
+    vel          -- double tuple, velocity (vy, vy)
+    mass         -- double, mass of the body
+    remove       -- int flag, used by engine to mark a body to be removed
+    collision    -- int flag, used by engine to mark a body which has collided
+    fixed        -- int flag, used by engine to mark a body as fixed (does not move)
+    next_force_x -- double, used during force calculation
+    next_force_y -- double, used during force calculation
+    '''
     cdef public (double, double) cog
     cdef (double, double) vel
     cdef double mass
@@ -31,6 +46,21 @@ cdef class Body():
 @cython.cdivision(True)
 @cython.freelist(10000000)
 cdef class Node():
+    '''
+    Object representing one node of the Barnes-Hut tree created from
+    root_node in init_children method of the Engine. One node may contain many
+    bodies and must therefore be able to calculate its center of gravity. If a
+    nodes contains more than one body it is further sliced during tree buildup.
+    In order to split bodies into subnodes nodes must be able to calculate
+    wether a body has coordinates inside of a node.
+
+    cog      -- double tuple, calculated using calc_cog method during tree buildup (x, y)
+    pos      -- double tuple, representing position of node, left bottom corner (x, y)
+    mass     -- double, sum of all body's masses calculated during calc_cog method
+    size     -- double, size of a node
+    children -- list, child nodes
+    bodies   -- list, bodes inside of the node
+    '''
     cdef (double, double) cog
     cdef public (double, double) pos
     cdef double mass
@@ -56,6 +86,7 @@ cdef class Node():
         cog_x = 0
         cog_y = 0
 
+        # default cog if we have no bodies
         if len(self.bodies) == 0:
             self.cog = (self.pos[0] + self.size/2, self.pos[1] + self.size/2)
             return
@@ -82,7 +113,19 @@ cdef class Node():
 
 @cython.cdivision(True)
 cdef class Engine():
+    '''
+    Main module class exposing most API to non-cython code consuming this
+    module. This class implements the Barnes-Hut algorith using the recursive
+    methods init_children and force_traverse. Use the phi attribute to play
+    with the algorithm's accuracy, while values close to 0 will by more
+    expensive but return more accurate results.
 
+    root_node       -- Node, root node object, new bodies are added here
+    phi             -- double, the engines accuracy (default 0.5)
+    size            -- double, the engines space size
+    collision_mode  -- string, the current collision_mode (default 'elastic')
+    collision_modes -- dict, maaping modes against collsion methods
+    '''
     cdef public Node root_node
     cdef public double phi
     cdef public double size
@@ -93,13 +136,15 @@ cdef class Engine():
     def __init__(self, size, phi=0.5, collision_mode='elastic'):
         self.root_node = Node((0, 0), size)
         self.phi = phi  # 10
-        self.collision_mode = collision_mode
         self.size = size
 
         self.collision_modes = {
             'elastic': self.elastic_collision,
             'inelastic': self.inelastic_collision,
         }
+
+        assert collision_mode in self.collision_modes, 'Invalid collision_mode!'
+        self.collision_mode = collision_mode
 
     cdef (double, double, double) calc_distance(self, (double, double) pos1, (double, double) pos2):
         cdef double delta_x, delta_y, dist
@@ -109,12 +154,24 @@ cdef class Engine():
         return dist, delta_x, delta_y
 
     cdef list slice_node(self, Node node):
-        # slice given node into 4 equal sized subnodes, then put bodies into
-        # subnodes according to their position
+        '''
+        Slice given node into 4 equal sized subnodes, then put bodies into
+        subnodes according to their position
+
+        Slicing looks like:
+
+        +--+--+
+        |nw|ne|
+        +--+--+
+        |sw|se|
+        +--+--+
+
+        '''
         cdef list children, delbodies
         cdef Node nw_node, ne_node, se_node, sw_node, child
         cdef double half_size
         half_size = node.size / 2.0
+        # north-west, north-east, ...
         nw_node = Node(
             pos=(node.pos[0], node.pos[1] + half_size),
             size=half_size
@@ -150,6 +207,9 @@ cdef class Engine():
         self._elastic_collision(body1, body2)
 
     cdef void _elastic_collision(self, Body body1, Body body2):
+        '''
+        Both bodies survive collision, kinetic energy/impulse is shared
+        '''
         if body1.collision or body2.collision:
             return
 
@@ -172,6 +232,10 @@ cdef class Engine():
         self._inelastic_collision(body1, body2)
 
     cdef void _inelastic_collision(self, Body body1, Body body2):
+        '''
+        The heavier body "eats" the other one, heavier body gets all kinetic
+        energy
+        '''
         cdef Body kill, keep
         if body1.remove or body2.remove:
             # Collision already done
@@ -196,9 +260,10 @@ cdef class Engine():
         if body2.remove:
             # early abort: body2 has been removed!
             return 0, 0
+        # collision check
         if dist <= 2:
             self.collision_modes[self.collision_mode](body1, body2)
-            # Collision done
+            # Collision done, no forces to be applied here
             return 0, 0
         force = (body1.mass * body2.mass) / (dist ** 2)
         force_x = force * delta_x / dist
@@ -216,7 +281,19 @@ cdef class Engine():
         self._force_traverse(body, node)
 
     cdef void _force_traverse(self, Body body, Node node):
+        '''
+        Forces to be applied to a body are calculated here by recursively
+        walking through the Barnes-Hut tree created before. Three major steps:
 
+        1) Check if given node has only one body and body is NOT given body
+        If so, calculate force and return.
+
+        2) Calculcate body's distance to the node. If the nodes size is small
+        compared to its distance (phi), calculate force by node and return.
+
+        3) First and second step did not match, we must traverse into nodes children
+        by calling this method recursively on all child nodes
+        '''
         cdef double dist, delta_x, delta_y, phi
         cdef Body second_body
 
@@ -259,6 +336,10 @@ cdef class Engine():
         self._tick()
 
     cdef void _tick(self):
+        '''
+        Calculcate new body positions by calling force_traverse method for
+        each body and apply resulting forces to them for one timestep
+        '''
         cdef Body body
         cdef double ax, ay, TIMERATIO
         self.init_children(self.root_node)
@@ -284,6 +365,11 @@ cdef class Engine():
         ]
 
     cdef void init_children(self, Node node):
+        '''
+        Build up Barnes-Hut tree recursively starting from root_node. The tree
+        must be rebuilt each tick as bodies are moving. The tree is complete
+        when each body resides in its own node
+        '''
         node._calc_cog()
         if len(node.bodies) <= 1:
             return
@@ -292,14 +378,24 @@ cdef class Engine():
             self.init_children(child)
 
     def add_body(self, cog, vel, mass, fixed=False):
+        '''
+        Method to be called from extern to add more bodies to the simulation
+        '''
         self.root_node.bodies.append(Body(cog, vel, mass, fixed))
 
     def print_children(self, node):
+        '''
+        Recursively print tree - debugging
+        '''
         print('node %s' % node.__dict__)
         for child in node.children:
             self.print_children(child)
 
     def traverse_node(self, node):
+        '''
+        Recursive iterator exposing all node objects, to be called from extern
+        to fetch node informations
+        '''
         yield node
         for child in node.children:
             yield from self.traverse_node(child)

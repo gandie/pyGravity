@@ -15,12 +15,13 @@ Currently implemented:
 More links!
 + [RK Engine Code stolen here](http://ttsiodras.github.com/gravity.html)
 + [Great explanation of Barnes-Hut algorithm](http://arborjs.org/docs/barnes-hut)
++ [Cython docs, which were extremely helpful to write/optimize CyGravity](https://cython.readthedocs.io/en/latest/index.html)
 
 ## Installation
 
 Requirements and module itself:
 
-```
+```bash
 pip install -r requirements.txt
 python setup.py install
 ```
