@@ -32,10 +32,10 @@ cdef class Body():
 @cython.freelist(10000000)
 cdef class Node():
     cdef (double, double) cog
-    cdef (double, double) pos
+    cdef public (double, double) pos
     cdef double mass
-    cdef double size
-    cdef list children
+    cdef public double size
+    cdef public list children
     cdef public list bodies
 
     def __cinit__(self, (double, double) pos, double size):
@@ -56,13 +56,15 @@ cdef class Node():
         cog_x = 0
         cog_y = 0
 
+        if len(self.bodies) == 0:
+            self.cog = (self.pos[0] + self.size/2, self.pos[1] + self.size/2)
+            return
+
         for body in self.bodies:
             self.mass += body.mass
             cog_x += body.cog[0] * body.mass
             cog_y += body.cog[1] * body.mass
 
-        if self.mass == 0:
-            return
         cog_x = cog_x / self.mass
         cog_y = cog_y / self.mass
         self.cog = (cog_x, cog_y)
@@ -107,6 +109,8 @@ cdef class Engine():
         return dist, delta_x, delta_y
 
     cdef list slice_node(self, Node node):
+        # slice given node into 4 equal sized subnodes, then put bodies into
+        # subnodes according to their position
         cdef list children, delbodies
         cdef Node nw_node, ne_node, se_node, sw_node, child
         cdef double half_size
@@ -215,32 +219,39 @@ cdef class Engine():
 
         cdef double dist, delta_x, delta_y, phi
         cdef Body second_body
+
+        # early abort if possible
         if body.remove or body.fixed:
             return
 
-        # if len(node.bodies) == 1 and node.bodies[0] != body:
+        # check for leaf node
         if len(node.bodies) == 1:
             second_body = node.bodies[0]
+            # do not call python rich comparison
             if body is not second_body:
                 force_x, force_y = self.calc_force(body, second_body)
                 body.next_force_x += force_x
                 body.next_force_y += force_y
-            # force_x, force_y = self.calc_force(body, node.bodies[0])
-            # body.next_force_x += force_x
-            # body.next_force_y += force_y
             return
         else:
+            # check if calculation can be done using the node
             dist, delta_x, delta_y = self.calc_distance(body.cog, node.cog)
             if not dist:
                 dist = .5
             phi = node.size / dist
             if phi < self.phi:
-                # force_x, force_y = self.calc_force(body, node)
-                force_x, force_y = self.calc_force_node(body, node, dist, delta_x, delta_y)
+                force_x, force_y = self.calc_force_node(
+                    body,
+                    node,
+                    dist,
+                    delta_x,
+                    delta_y
+                )
                 body.next_force_x += force_x
                 body.next_force_y += force_y
                 return
             else:
+                # calculation by node not possible, traverse down the tree
                 for child in node.children:
                     self._force_traverse(body, child)
 
@@ -292,4 +303,3 @@ cdef class Engine():
         yield node
         for child in node.children:
             yield from self.traverse_node(child)
-        #print('called!')

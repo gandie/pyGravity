@@ -27,7 +27,7 @@ def main():
     clock = pygame.time.Clock()
 
     draw_boxes = False
-    engine = Engine(size=10000, phi=.5, collision_mode='elastic')
+    engine = Engine(size=1000, phi=.5, collision_mode='elastic')
 
     SCALE = engine.size / RESOLUTION[0]
     SUNMASS = 1000000
@@ -103,19 +103,25 @@ def main():
 
         if draw_boxes:
             for node in engine.traverse_node(engine.root_node):
-                node_surface = pygame.Surface((node.size, node.size))
+                node_surface = pygame.Surface(
+                    (node.size / SCALE, node.size / SCALE)
+                )
                 pygame.draw.rect(
                     node_surface,
                     (255, 0, 0, 0),
-                    (0, 0, node.size, node.size)
+                    (0, 0, node.size / SCALE, node.size / SCALE)
                 )
                 pygame.draw.rect(
                     node_surface,
                     (0, 0, 0, 0),
-                    (1, 1, node.size - 2, node.size - 2)
+                    (1, 1, (node.size / SCALE) - 2, (node.size / SCALE) - 2)
                 )
                 node_surface = node_surface.convert_alpha()
-                display.blit(node_surface, node.pos)
+                display.blit(
+                    node_surface,
+                    (node.pos[0] / SCALE, node.pos[1] / SCALE)
+                    #node.pos
+                )
 
         for body in engine.root_node.bodies:
             body_surface = pygame.Surface((1, 1))
