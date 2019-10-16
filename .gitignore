@@ -1,0 +1,7 @@
+__pycache__
+build
+*.c
+*.html
+*.so
+venv2
+venv3
