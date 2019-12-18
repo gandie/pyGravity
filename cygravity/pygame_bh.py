@@ -27,7 +27,7 @@ def main():
     clock = pygame.time.Clock()
 
     draw_boxes = False
-    engine = Engine(size=1000, phi=.5, collision_mode='elastic')
+    engine = Engine(size=10000, phi=.5, collision_mode='inelastic')
 
     SCALE = engine.size / RESOLUTION[0]
     SUNMASS = 1000000

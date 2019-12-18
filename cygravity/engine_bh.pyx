@@ -51,7 +51,7 @@ cdef class Node():
     root_node in init_children method of the Engine. One node may contain many
     bodies and must therefore be able to calculate its center of gravity. If a
     nodes contains more than one body it is further sliced during tree buildup.
-    In order to split bodies into subnodes nodes must be able to calculate
+    In order to distribute bodies on subnodes, nodes must be able to calculate
     wether a body has coordinates inside of a node.
 
     cog      -- double tuple, calculated using calc_cog method during tree buildup (x, y)
@@ -124,7 +124,7 @@ cdef class Engine():
     phi             -- double, the engines accuracy (default 0.5)
     size            -- double, the engines space size
     collision_mode  -- string, the current collision_mode (default 'elastic')
-    collision_modes -- dict, maaping modes against collsion methods
+    collision_modes -- dict, mapping modes against collsion methods
     '''
     cdef public Node root_node
     cdef public double phi
@@ -291,8 +291,8 @@ cdef class Engine():
         2) Calculcate body's distance to the node. If the nodes size is small
         compared to its distance (phi), calculate force by node and return.
 
-        3) First and second step did not match, we must traverse into nodes children
-        by calling this method recursively on all child nodes
+        3) First and second step did not match, we must traverse deeper into
+        nodes children by calling this method recursively on all child nodes.
         '''
         cdef double dist, delta_x, delta_y, phi
         cdef Body second_body
@@ -350,7 +350,7 @@ cdef class Engine():
             self._force_traverse(body, self.root_node)
             ax = -body.next_force_x / body.mass
             ay = -body.next_force_y / body.mass
-            TIMERATIO = .1
+            TIMERATIO = 1
             body.vel = (
                 body.vel[0] + ax * TIMERATIO,
                 body.vel[1] + ay * TIMERATIO
